@@ -10,7 +10,7 @@ git submodule add https://github.com/glfw/glfw.git glfw
 ```
 - FFmpeg
 ```
-sudo apt install -y libavcodec-dev libavformat-dev libavdevice-dev libavfilter-dev
+sudo apt-get install -y libavcodec-dev libavformat-dev libavdevice-dev libavfilter-dev
 ```
 
 ### Tools

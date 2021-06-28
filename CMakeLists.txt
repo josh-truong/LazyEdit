@@ -39,6 +39,8 @@ add_subdirectory(lib/FFmpeg)
 
 list(APPEND SOURCES
     src/main.cpp
+    src/VideoReader.h
+    src/VideoReader.cpp
 )
 add_executable(${PROJECT_NAME} MACOSX_BUNDLE WIN32 ${SOURCES})
 

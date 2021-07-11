@@ -37,6 +37,6 @@
 - Main Use: vlog/travel videos
 - Followed with a b-roll
 ### Image cropping algorithm
-- Try to place the subject in focus
+- Try to place the subject in focus [[Link]](https://venturebeat.com/2020/02/13/googles-autoflip-automatically-crops-videos-using-ai/)
   - NOTE: Cropping is usually done on images not videos
 ### Enhance video

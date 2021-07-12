@@ -27,22 +27,27 @@ endif()
 
 
 # CHECK ALL SUBMODULES
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/lib/glfw/CMakeLists.txt")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/external/glfw/CMakeLists.txt")
     message(FATAL_ERROR "Submodule glfw is required for this build!")
 endif()
 
 
 # Add subdirectories
-add_subdirectory(lib/glfw)
-add_subdirectory(lib/FFmpeg)
+add_subdirectory(external/glfw)
+add_subdirectory(external/FFmpeg)
 
 
+
+list(APPEND HEADER_FILES
+    include/VideoReader.h
+)
 list(APPEND SOURCES
-    src/main.cpp
-    src/VideoReader.h
     src/VideoReader.cpp
 )
-add_executable(${PROJECT_NAME} MACOSX_BUNDLE WIN32 ${SOURCES})
+list(APPEND APP
+    app/main.cpp
+)
+add_executable(${PROJECT_NAME} MACOSX_BUNDLE WIN32 ${APP} ${HEADER_FILES} ${SOURCES})
 
 # OS specific
 if(UNIX)
@@ -56,12 +61,14 @@ endif()
 
 # Include dirs
 target_include_directories(${PROJECT_NAME}
+    PUBLIC include/
     PUBLIC lib/glfw/include/
 )
 
 
 # Source dirs
 target_include_directories(${PROJECT_NAME}
+    PRIVATE src/
     PRIVATE lib/glfw/src/
 )
 

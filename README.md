@@ -4,7 +4,7 @@
 ###  Submodules
 - glfw
 ```cpp
-cd lib
+cd external
 rm -rf glfw
 git submodule add https://github.com/glfw/glfw.git glfw
 ```

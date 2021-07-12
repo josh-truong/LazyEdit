@@ -40,9 +40,11 @@ add_subdirectory(external/FFmpeg)
 
 list(APPEND HEADER_FILES
     include/VideoReader.h
+    include/Shader.h
 )
 list(APPEND SOURCES
     src/VideoReader.cpp
+    src/Shader.cpp
 )
 list(APPEND APP
     app/main.cpp

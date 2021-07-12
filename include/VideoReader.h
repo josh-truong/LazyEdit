@@ -44,6 +44,7 @@ class VideoReader
         ~VideoReader();
 
         void SaveFrame(AVFrame *pFrame);
+        void ShowFrame(AVFrame *pFrame);
 
         int decode_packet(AVCodecContext* dec, const AVPacket* pkt);
         int open_codec_context(int &stream_index,

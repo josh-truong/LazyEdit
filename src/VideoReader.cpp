@@ -1,5 +1,11 @@
+#define GL_GLEXT_PROTOTYPES
+#include <GL/gl.h>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
 #include <iostream>
 #include "VideoReader.h"
+#include "Shader.h"
 
 
 using std::cout;

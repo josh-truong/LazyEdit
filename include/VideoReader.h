@@ -46,8 +46,9 @@ class VideoReader
         void SaveFrame(AVFrame *pFrame);
         void ShowFrame(AVFrame *pFrame);
 
-        int decode_packet(AVCodecContext* dec, const AVPacket* pkt);
-        int open_codec_context(int &stream_index,
+        int DecodePacket(AVCodecContext* dec, const AVPacket* pkt);
+        void Frame2File();
+        int OpenCodecContext(int &stream_index,
             AVCodecContext** dec_ctx, enum AVMediaType type);
 
         int demux();

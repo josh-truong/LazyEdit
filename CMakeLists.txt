@@ -34,20 +34,23 @@ endif()
 
 # Add subdirectories
 add_subdirectory(external/glfw)
+add_subdirectory(external/glm)
 add_subdirectory(external/FFmpeg)
 
 
 
 list(APPEND HEADER_FILES
-    include/VideoReader.h
+    # include/VideoReader.h
     include/Shader.h
+    include/stb_image.h
 )
 list(APPEND SOURCES
-    src/VideoReader.cpp
+    # src/VideoReader.cpp
     src/Shader.cpp
 )
 list(APPEND APP
     app/main.cpp
+    # app/demuxing_decoding.cpp
 )
 add_executable(${PROJECT_NAME} MACOSX_BUNDLE WIN32 ${APP} ${HEADER_FILES} ${SOURCES})
 
@@ -65,6 +68,7 @@ endif()
 target_include_directories(${PROJECT_NAME}
     PUBLIC include/
     PUBLIC lib/glfw/include/
+    PUBLIC external/glm
 )
 
 

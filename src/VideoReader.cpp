@@ -17,8 +17,8 @@ extern "C"
     #include <libavutil/imgutils.h>
     #include <libavutil/samplefmt.h>
     #include <libavutil/timestamp.h>
+    #include <libavcodec/avcodec.h>
     #include <libavformat/avformat.h>
-    #include <libswscale/swscale.h>
 }
 
 VideoReader::VideoReader(const char* _src_file, const char* _video_output_file, const char* _audio_output_file)
@@ -87,15 +87,21 @@ void VideoReader::SaveFrame(AVFrame *pFrame)
         fwrite(pFrame->data[0]+y*pFrame->linesize[0], 1, width, pFile);
     }
         
-    if(n_frames == 200)
-        exit(0);
+    // if(n_frames == 200)
+    //     exit(0);
     
     // Close file
     fclose(pFile);
 }
 
 
-int VideoReader::decode_packet(AVCodecContext* dec, const AVPacket* pkt)
+void ShowFrame(AVFrame *pFrame)
+{
+
+}
+
+
+int VideoReader::DecodePacket(AVCodecContext* dec, const AVPacket* pkt)
 {
     int status = 0;
 
@@ -125,7 +131,39 @@ int VideoReader::decode_packet(AVCodecContext* dec, const AVPacket* pkt)
     return 0;
 }
 
-int VideoReader::open_codec_context(int &stream_index,
+void VideoReader::Frame2File()
+{
+    int decoder_status = -1;
+    while (av_read_frame(fmt_ctx, &pkt) == 0) {
+        // Check if the packet belongs to the stream of interest
+        if (pkt.stream_index == video_stream_idx)
+            decoder_status = DecodePacket(vid_dec_ctx, &pkt);
+        else if (pkt.stream_index == audio_stream_idx)
+            decoder_status = DecodePacket(audio_dec_ctx, &pkt);
+        
+        av_packet_unref(&pkt);
+        if(decoder_status < 0)
+            break;
+    }
+
+    if(video_stream) {
+        printf("Play output video:\n"
+            "ffplay -f rawvideo -pix_fmt %s -video_size %dx%d %s\n",
+            av_get_pix_fmt_name(vid_dec_ctx->pix_fmt), vid_dec_ctx->width,
+            vid_dec_ctx->height, video_output_file
+        );
+    }
+
+    // Flush the decoder
+    if (vid_dec_ctx)
+        DecodePacket(vid_dec_ctx, NULL);
+    if (audio_dec_ctx)
+        DecodePacket(audio_dec_ctx, NULL);
+    
+    cout << "Demuxing succeeded\n";
+}
+
+int VideoReader::OpenCodecContext(int &stream_index,
             AVCodecContext** dec_ctx, enum AVMediaType type)
 {
     /*
@@ -207,7 +245,7 @@ int VideoReader::demux()
        return -1;
    }
 
-    if (open_codec_context(video_stream_idx, &vid_dec_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
+    if (OpenCodecContext(video_stream_idx, &vid_dec_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
         video_stream = fmt_ctx->streams[video_stream_idx];
 
         video_dst_file = fopen(video_output_file, "wb");
@@ -228,7 +266,7 @@ int VideoReader::demux()
         }
     }
 
-    if (open_codec_context(audio_stream_idx, &audio_dec_ctx, AVMEDIA_TYPE_AUDIO) >= 0) {
+    if (OpenCodecContext(audio_stream_idx, &audio_dec_ctx, AVMEDIA_TYPE_AUDIO) >= 0) {
         audio_stream = fmt_ctx->streams[audio_stream_idx];
 
         audio_dst_file = fopen(audio_output_file, "wb");
@@ -261,27 +299,11 @@ int VideoReader::demux()
     if (audio_stream)
         cout << "Demuxing audio\n";
 
+    // ##################################################################
+    Frame2File();
     // Read frames to file
-    int decoder_status = -1;
-    while (av_read_frame(fmt_ctx, &pkt) == 0) {
-        // Check if the packet belongs to the stream of interest
-        if (pkt.stream_index == video_stream_idx)
-            decoder_status = decode_packet(vid_dec_ctx, &pkt);
-        else if (pkt.stream_index == audio_stream_idx)
-            decoder_status = decode_packet(audio_dec_ctx, &pkt);
-        
-        av_packet_unref(&pkt);
-        if(decoder_status < 0)
-            break;
-    }
-
-    // Flush the decoder
-    if (vid_dec_ctx)
-        decode_packet(vid_dec_ctx, NULL);
-    if (audio_dec_ctx)
-        decode_packet(audio_dec_ctx, NULL);
     
-    cout << "Demuxing succeeded\n";
+    // ##################################################################
 
 
     return 0;

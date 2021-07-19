@@ -8,19 +8,18 @@
 
 class Shader
 {
-    // private:
-
     public:
         unsigned int ID;
 
-        Shader(const char* vertexPath, const char* fragmentPath);
+        Shader();
         ~Shader();
 
-        void use();
+        void InitShader(const char* vertexPath, const char* fragmentPath);
+        void Use();
 
-        void setBool_u1i(const std::string &name, bool value) const;
-        void setInt_u1i(const std::string &name, int value) const;
-        void setFloat_u1f(const std::string &name, float value) const;
+        void SetBool1(const std::string &name, bool value) const;
+        void SetInt1(const std::string &name, int value) const;
+        void SetFloat1(const std::string &name, float value) const;
 };
 
 #endif

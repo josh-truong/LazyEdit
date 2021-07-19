@@ -1,47 +1,4 @@
-/*
- * Copyright (c) 2012 Stefano Sabatini
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
-/**
- * @file
- * Demuxing and decoding example.
- *
- * Show how to use the libavformat and libavcodec API to demux and
- * decode audio and video data.
- * @example demuxing_decoding.c
- */
-
-#define GL_GLEXT_PROTOTYPES
-#include <GL/gl.h>
-#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-#include "Shader.h"
-#include "Callbacks.h"
-
-#include <cstdio>
 
 #define __STDC_CONSTANT_MACROS
 extern "C"
@@ -54,93 +11,43 @@ extern "C"
     #include <libswscale/swscale.h>
 }
 
-AVFormatContext *fmt_ctx = NULL;
-AVCodecContext *video_dec_ctx = NULL, *audio_dec_ctx;
-int width, height;
-enum AVPixelFormat pix_fmt;
-AVStream *video_stream = NULL, *audio_stream = NULL;
-const char *src_filename = NULL;
-const char *video_dst_filename = NULL;
-const char *audio_dst_filename = NULL;
-FILE *video_dst_file = NULL;
-FILE *audio_dst_file = NULL;
+#include "LazyEdit.h"
+#include "Shader.h"
 
-uint8_t *video_dst_data[4] = {NULL};
-int      video_dst_linesize[4];
-int video_dst_bufsize;
+#include <cstdio>
 
-int video_stream_idx = -1, audio_stream_idx = -1;
-AVFrame *frame = NULL;
-AVPacket *pkt = NULL;
-int video_frame_count = 0;
-int audio_frame_count = 0;
-
-GLFWwindow *window;
-Shader shader;
-unsigned int VBO, VAO, EBO;
-unsigned int texture;
-
-SwsContext *sws_cxt;
-
-
-int output_video_frame(AVFrame *frame)
+LazyEdit::LazyEdit()
 {
-    if (frame->width != width || frame->height != height ||
-        frame->format != pix_fmt) {
-        /* To handle this change, one could call av_image_alloc again and
-         * decode the following frames into another rawvideo file. */
-        fprintf(stderr, "Error: Width, height and pixel format have to be "
-                "constant in a rawvideo file, but the width, height or "
-                "pixel format of the input video changed:\n"
-                "old: width = %d, height = %d, format = %s\n"
-                "new: width = %d, height = %d, format = %s\n",
-                width, height, av_get_pix_fmt_name(pix_fmt),
-                frame->width, frame->height,
-                av_get_pix_fmt_name((AVPixelFormat)frame->format));
-        return -1;
-    }
 
-    printf("video_frame n:%d coded_n:%d\n",
-           video_frame_count++, frame->coded_picture_number);
-
-    /* copy decoded frame to destination buffer:
-     * this is required since rawvideo expects non aligned data */
-    av_image_copy(video_dst_data, video_dst_linesize,
-                  (const uint8_t **)(frame->data), frame->linesize,
-                  pix_fmt, width, height);
-
-    /* write to rawvideo file */
-    fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
-    return 0;
 }
 
-int output_audio_frame(AVFrame *frame)
+
+LazyEdit::~LazyEdit()
 {
-    size_t unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample((AVSampleFormat)frame->format);
-    // printf("audio_frame n:%d nb_samples:%d pts:%s\n",
-    //        audio_frame_count++, frame->nb_samples,
-    //        av_ts2timestr(frame->pts, &audio_dec_ctx->time_base));
+    avcodec_free_context(&video_dec_ctx);
+    avcodec_free_context(&audio_dec_ctx);
+    avformat_close_input(&fmt_ctx);
+    if (video_dst_file)
+        fclose(video_dst_file);
+    if (audio_dst_file)
+        fclose(audio_dst_file);
+    av_packet_free(&pkt);
+    av_frame_free(&frame);
+    av_free(video_dst_data[0]);
 
-    /* Write the raw audio data samples of the first plane. This works
-     * fine for packed formats (e.g. AV_SAMPLE_FMT_S16). However,
-     * most audio decoders output planar audio, which uses a separate
-     * plane of audio samples for each channel (e.g. AV_SAMPLE_FMT_S16P).
-     * In other words, this code will write only the first audio channel
-     * in these cases.
-     * You should use libswresample or libavfilter to convert the frame
-     * to packed data. */
-    fwrite(frame->extended_data[0], 1, unpadded_linesize, audio_dst_file);
-
-    return 0;
+    
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }
 
-int sws_scale_video_frame(AVFrame *frame, uint8_t *frame_buffer)
+
+
+int LazyEdit::sws_scale_video_frame(AVFrame *frame, uint8_t *frame_buffer)
 {
-    if (!sws_cxt) {
-        sws_cxt = sws_getContext(width, height, video_dec_ctx->pix_fmt,
+    SwsContext *sws_cxt = sws_getContext(width, height, video_dec_ctx->pix_fmt,
                                     width, height, AV_PIX_FMT_RGB0,
                                     SWS_BICUBIC, NULL, NULL, NULL);
-    }
+
     if(!sws_cxt) {
         printf("Could initialize sws scalar");
         return -1;
@@ -148,24 +55,13 @@ int sws_scale_video_frame(AVFrame *frame, uint8_t *frame_buffer)
 
     uint8_t* dest[4] = { frame_buffer, NULL, NULL, NULL };
     int dest_linesize[4] = { width * 4, 0, 0, 0 };
+
     sws_scale(sws_cxt, frame->data, frame->linesize, 0, height, dest, dest_linesize);
     return 0;
 }
 
-void render_frame(uint8_t *frame_data)
-{
-    // Render commands
-    glClearColor(0.188f, 0.188f, 0.188f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame_data);
-    shader.Use();
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-    glfwSwapBuffers(window);
-    glfwPollEvents();
-}
 
-int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
+int LazyEdit::decode_packet(AVCodecContext *dec, const AVPacket *pkt)
 {
     int ret = 0;
 
@@ -213,7 +109,7 @@ int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
     return 0;
 }
 
-int open_codec_context(int *stream_idx,
+int LazyEdit::open_codec_context(int *stream_idx,
                               AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
 {
     int ret, stream_index;
@@ -264,7 +160,8 @@ int open_codec_context(int *stream_idx,
     return 0;
 }
 
-int get_format_from_sample_fmt(const char **fmt,
+
+int LazyEdit::get_format_from_sample_fmt(const char **fmt,
                                       enum AVSampleFormat sample_fmt)
 {
     int i;
@@ -293,97 +190,16 @@ int get_format_from_sample_fmt(const char **fmt,
     return -1;
 }
 
-int init_renderer()
-{
-    if(!glfwInit()) {
-        fprintf(stderr, "Failed to initialize GLFW\n");
-        return -1;
-    }
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    window = glfwCreateWindow(width, height, "Particle System", NULL, NULL);    
-    if (!window) {
-        fprintf(stderr, "Failed to open GLFW window\n");
-        glfwTerminate();
-        return -1;
-    }
-
-    glfwMakeContextCurrent(window);
-    glfwSetErrorCallback(error_callback);
-    glfwSetKeyCallback(window, key_callback);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSwapInterval(1);
-
-    const char* vertex_path = "/home/ubuntu/Documents/Github/LazyEdit/assets/ShaderCode/vertex.glsl";
-    const char* fragment_path = "/home/ubuntu/Documents/Github/LazyEdit/assets/ShaderCode/fragment.glsl";
-    shader.InitShader(vertex_path, fragment_path);
-    float vertices[] = {
-        // Position           // Texture Coordinates
-         1.0f,  1.0f, 0.0f,   1.0f, 1.0f,
-         1.0f, -1.0f, 0.0f,   1.0f, 0.0f,
-        -1.0f, -1.0f, 0.0f,   0.0f, 0.0f,
-        -1.0f,  1.0f, 0.0f,   0.0f, 1.0f
-    };
-    unsigned int indices[] = {
-        0, 1, 3,
-        1, 2, 3
-    };
-    
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(3*sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glBindVertexArray(VAO);
-
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    return 0;
-}
-int main (int argc, char **argv)
+int LazyEdit::decode()
 {
     int ret = 0;
 
-    if (argc != 4) {
-        fprintf(stderr, "usage: %s  input_file video_output_file audio_output_file\n"
-                "API example program to show how to read frames from an input file.\n"
-                "This program reads frames from a file, decodes them, and writes decoded\n"
-                "video frames to a rawvideo file named video_output_file, and decoded\n"
-                "audio frames to a rawaudio file named audio_output_file.\n",
-                argv[0]);
+    if (!src_filename || !video_dst_filename || !audio_dst_filename) {
+        printf("You need to initialize:\n"
+        "src_filename, video_dst_filename, and/or audio_dst_filename\n");
         exit(1);
     }
-    src_filename = argv[1];
-    video_dst_filename = argv[2];
-    audio_dst_filename = argv[3];
 
     /* open input file, and allocate format context */
     if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
@@ -520,22 +336,5 @@ int main (int argc, char **argv)
                fmt, n_channels, audio_dec_ctx->sample_rate,
                audio_dst_filename);
     }
-
-end:
-    avcodec_free_context(&video_dec_ctx);
-    avcodec_free_context(&audio_dec_ctx);
-    avformat_close_input(&fmt_ctx);
-    if (video_dst_file)
-        fclose(video_dst_file);
-    if (audio_dst_file)
-        fclose(audio_dst_file);
-    av_packet_free(&pkt);
-    av_frame_free(&frame);
-    av_free(video_dst_data[0]);
-
-    
-    glfwDestroyWindow(window);
-    glfwTerminate();
-
-    return ret < 0;
+    return 0;
 }

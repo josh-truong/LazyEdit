@@ -40,13 +40,15 @@ add_subdirectory(external/FFmpeg)
 
 
 list(APPEND HEADER_FILES
-    # include/VideoReader.h
-    include/Shader.h
-    include/stb_image.h
+    "include/Shader.h"
+    "include/LazyEdit.h"
+    "include/Callbacks.h"
 )
 list(APPEND SOURCES
-    # src/VideoReader.cpp
-    src/Shader.cpp
+    "src/Shader.cpp"
+    "src/LazyEdit.cpp"
+    "src/Renderer.cpp"
+    "src/OutputRawFile.cpp"
 )
 list(APPEND APP
     app/main.cpp
